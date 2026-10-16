@@ -1,59 +1,49 @@
 # AIOA
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.2.2.
+Plataforma B2B de chamados (tickets) para o suporte dos sistemas **LexFlow, LexÁgile, LexHub, LexPré e LexChat**.
+Protótipo funcional para validação com os primeiros clientes: Nicolas Gomes Advogado, Luis Albert Advogado (AM e RJ) e LexFinance.
 
-## Development server
-
-To start a local development server, run:
-
-```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Rodando
 
 ```bash
-ng generate component component-name
+npm install
+npm start
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+Abra http://localhost:4200. O painel da equipe abre em `/dashboard`; o portal do cliente em `/portal`.
 
 ```bash
-ng generate --help
+npm test        # testes (Vitest)
+npm run build   # build de produção em dist/
 ```
 
-## Building
+## O que tem
 
-To build the project run:
+**Painel da equipe AIOA**: Dashboard, Inbox (mensagens diretas), Notificações, Tickets, Histórico de tickets
+(transcrições), Fórum, Report, Base de conhecimento e Clientes. Na tela do ticket: conversa com notas internas,
+anexos, emoji, áudio, ligação/vídeo e painel lateral (detalhes, atividade, base, fórum, report, conversas do cliente).
 
-```bash
-ng build
+**Portal do cliente**: login simulado por empresa, Meus chamados, Abrir chamado (com sugestões da base de
+conhecimento) e conversa do chamado, sem as notas internas.
+
+## Limites do protótipo
+
+- Não há backend: os dados ficam no `localStorage` do navegador (Configurações › Restaurar dados de exemplo).
+- Login do portal é simulado; o isolamento entre empresas é feito no front.
+- Ligação/vídeo usam câmera e microfone locais; conectar o cliente exige um serviço WebRTC.
+- Anexos limitados a 2 MB por arquivo.
+
+## Estrutura
+
+```
+src/app/
+  data.ts        modelo, dados de exemplo e Store (signals + localStorage)
+  ui.ts          ícones e logo
+  composer.ts    anexos, emoji e áudio
+  call.ts        ligação e chamada de vídeo
+  portal.ts      portal do cliente
+  pages/         telas do painel da equipe
+src/styles.scss  tokens da marca e estilos
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Angular 22, componentes standalone com signals, sem bibliotecas de UI.

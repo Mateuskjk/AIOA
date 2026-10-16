@@ -1,0 +1,215 @@
+import { Component, ElementRef, afterRenderEffect, computed, inject, input, linkedSignal, signal, viewChild } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
+import { AGENTS, Attachment, CHANNELS, Channel, STATUSES, Status, Store, Ticket, badge, code, fmt, initials, sla } from '../data';
+import { Icon } from '../ui';
+import { Attachments, ComposerTools } from '../composer';
+import { TicketSide } from './ticket-side';
+import { Call, CallKind } from '../call';
+
+@Component({
+  selector: 'app-ticket-detail',
+  imports: [Icon, RouterLink, ComposerTools, Attachments, TicketSide, Call],
+  template: `
+    @if (ticket(); as t) {
+      <div class="td">
+        <header class="td-top">
+          <a routerLink="/tickets" class="back"><app-icon name="back" /> Lista de tickets</a>
+          <div class="td-title">
+            <button class="icon-btn" aria-label="Chamado anterior" [disabled]="!sibling(-1)" (click)="go(sibling(-1))"><app-icon name="chevron-left" /></button>
+            <button class="icon-btn" aria-label="Próximo chamado" [disabled]="!sibling(1)" (click)="go(sibling(1))"><app-icon name="chevron-right" /></button>
+            <b class="code">{{ code(t) }}</b>
+            <span class="title-chip" [title]="t.title">{{ t.title }}</span>
+            <button class="icon-btn" [class.pinned]="t.pinned" [attr.aria-pressed]="t.pinned"
+              [attr.aria-label]="t.pinned ? 'Desafixar' : 'Fixar'" (click)="store.updateTicket(t.id, { pinned: !t.pinned })">
+              <app-icon name="pin" />
+            </button>
+            <button class="icon-btn" aria-label="Ligar para o cliente" title="Ligação" (click)="call.set('audio')"><app-icon name="phone" /></button>
+            <button class="icon-btn" aria-label="Chamada de vídeo com o cliente" title="Chamada de vídeo" (click)="call.set('video')"><app-icon name="video" /></button>
+          </div>
+          <div class="split">
+            <button class="btn btn-ok" (click)="resolve(t)" [disabled]="t.status === 'Resolvido'">Marcar como resolvido</button>
+            <button class="btn btn-ok caret" aria-label="Outros status" (click)="menu.set(!menu())"><app-icon name="chevron-down" /></button>
+            @if (menu()) {
+              <div class="menu" role="menu">
+                @for (s of statuses; track s) {
+                  <button role="menuitem" (click)="setStatus(t, s)" [class.current]="s === t.status"><span [class]="badge(s)">{{ s }}</span></button>
+                }
+              </div>
+            }
+          </div>
+        </header>
+
+        <div class="td-body">
+          <section class="td-main">
+            <div #scroller class="td-scroll">
+              <ol class="timeline">
+                @for (item of timeline(); track $index) {
+                  @if (item.kind === 'event') {
+                    <li class="event"><span class="ev-icon"><app-icon name="ticket" /></span>
+                      <span class="muted">{{ item.text }}</span><small class="muted">· {{ fmt(item.at) }}</small></li>
+                  } @else {
+                    <li class="msg" [class.note]="item.internal">
+                      <span class="avatar sm" [class.agent]="isAgent(item.author)">{{ initials(item.author) }}</span>
+                      <div>
+                        <header><strong>{{ item.author }}</strong>
+                          @if (item.internal) {
+                            <span class="note-tag"><app-icon name="lock" /> Nota interna</span><small class="muted">· {{ fmt(item.at) }}</small>
+                          } @else {
+                            <small class="muted">· {{ fmt(item.at) }} @if (item.via) { · via <span class="via">{{ item.via }}</span> }</small>
+                          }
+                        </header>
+                        @if (item.body) { <p>{{ item.body }}</p> }
+                        @if (item.files?.length) { <app-attachments [files]="item.files!" /> }
+                      </div>
+                    </li>
+                  }
+                }
+              </ol>
+            </div>
+
+              <form class="composer" (submit)="send(t, $event)">
+                <span class="avatar sm agent">{{ initials(store.user().name) }}</span>
+                <div class="box" [class.internal]="note()">
+                  <div class="cmp-top">
+                    <div class="seg" role="radiogroup" aria-label="Tipo de mensagem">
+                      <button type="button" role="radio" [attr.aria-checked]="!note()" [class.on]="!note()" (click)="note.set(false)">Resposta</button>
+                      <button type="button" role="radio" [attr.aria-checked]="note()" [class.on]="note()" (click)="note.set(true)"><app-icon name="lock" /> Nota interna</button>
+                    </div>
+                    @if (note()) {
+                      <span class="muted">Visível só para a equipe AIOA</span>
+                    } @else {
+                      <label>Via <select #ch (change)="via.set($any(ch.value))">@for (c of channels; track c) { <option [selected]="c === via()">{{ c }}</option> }</select></label>
+                      <label>De <span class="chip">Suporte AIOA</span></label>
+                    }
+                  </div>
+                  @if (files().length) {
+                    <app-attachments [(files)]="files" removable />
+                  }
+                  <textarea #ta name="body" rows="2" (keydown.control.enter)="submit($event)"
+                    [placeholder]="note() ? 'Escreva uma nota interna para a equipe…' : 'Escreva uma resposta para ' + t.requester + '…'"></textarea>
+                  <div class="cmp-foot">
+                    <app-composer-tools [target]="ta" [(files)]="files" />
+                    <button class="btn btn-primary" title="Ctrl + Enter">{{ note() ? 'Salvar nota' : 'Enviar' }}</button>
+                  </div>
+                </div>
+              </form>
+          </section>
+
+          <app-ticket-side [t]="t" (insert)="insertText($event)" />
+        </div>
+      </div>
+      @if (call(); as k) {
+        <app-call [kind]="k" [peer]="t.requester" [me]="store.user().name" [context]="code(t) + ' · ' + t.title" (ended)="endCall(t, k, $event)" />
+      }
+    } @else {
+      <div class="page"><div class="empty">Chamado não encontrado. <a routerLink="/tickets">Voltar à lista</a></div></div>
+    }
+  `,
+})
+export class TicketDetail {
+  readonly id = input.required<string>();
+  protected readonly store = inject(Store);
+  private readonly router = inject(Router);
+  protected readonly statuses = STATUSES;
+  protected readonly channels = CHANNELS;
+  protected readonly badge = badge;
+  protected readonly code = code;
+  protected readonly fmt = fmt;
+  protected readonly initials = initials;
+  protected readonly sla = sla;
+  protected readonly menu = signal(false);
+  protected readonly call = signal<CallKind | null>(null);
+  protected readonly files = signal<Attachment[]>([]);
+  private readonly reply = viewChild<ElementRef<HTMLTextAreaElement>>('ta');
+  private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
+
+  constructor() {
+    // Keep the newest message in view when the thread opens or grows.
+    afterRenderEffect(() => {
+      this.timeline().length;
+      const el = this.scroller()?.nativeElement;
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+  }
+  protected readonly via = linkedSignal<Channel>(() => this.ticket()?.messages[0]?.via ?? 'WhatsApp');
+
+  protected readonly ticket = computed(() => this.store.ticket(Number(this.id())));
+  /** Composer mode: internal note (team only) instead of a reply to the customer. */
+  protected readonly note = signal(false);
+  protected readonly timeline = computed(() => {
+    const t = this.ticket();
+    if (!t) return [];
+    return [
+      ...t.log.map((l) => ({ kind: 'event' as const, ...l, author: '', body: '', via: undefined, files: undefined })),
+      ...t.messages.map((m) => ({ kind: 'msg' as const, text: '', ...m })),
+    ].sort((a, b) => a.at - b.at);
+  });
+
+  /** Appends text from the side panels to the reply box. */
+  protected insertText(text: string) {
+    const el = this.reply()?.nativeElement;
+    if (!el) return;
+    el.value = el.value.trim() ? el.value.trimEnd() + '\n\n' + text : text;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }
+
+  protected endCall(t: Ticket, kind: CallKind, secs: number) {
+    this.call.set(null);
+    const what = kind === 'video' ? 'uma chamada de vídeo' : 'uma ligação';
+    const dur = `${Math.floor(secs / 60)} min ${String(secs % 60).padStart(2, '0')} s`;
+    this.store.logEvent(t.id, `${this.store.user().name} fez ${what} com ${t.requester} · duração ${dur}`);
+  }
+
+  protected isAgent(name: string) {
+    return AGENTS.includes(name) || name === this.store.user().name;
+  }
+
+  protected sibling(dir: 1 | -1) {
+    const ids = this.store.tickets().map((t) => t.id).sort((a, b) => a - b);
+    return ids[ids.indexOf(Number(this.id())) + dir];
+  }
+
+  protected go(id?: number) {
+    if (id) this.router.navigate(['/tickets', id]);
+  }
+
+  protected setStatus(t: Ticket, status: Status) {
+    this.menu.set(false);
+    this.store.updateTicket(t.id, { status });
+  }
+
+  protected submit(e: Event) {
+    e.preventDefault();
+    (e.target as HTMLTextAreaElement).form?.requestSubmit();
+  }
+
+  protected send(t: Ticket, e: Event) {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const body = String(new FormData(form).get('body') ?? '').trim();
+    if (!body && !this.files().length) return;
+    this.store.reply(t.id, body, this.via(), this.note(), this.files());
+    this.files.set([]);
+    (form.elements.namedItem('body') as HTMLTextAreaElement).value = '';
+  }
+
+  /**
+   * Resolving sends the customer a closing message, archives a full transcript in Histórico de tickets
+   * and as an internal note with a .txt attachment, then closes out the ticket and returns to the list.
+   */
+  protected resolve(t: Ticket) {
+    this.menu.set(false);
+    this.store.reply(t.id, `Olá, ${t.requester}! Seu chamado ${code(t)} foi resolvido e o atendimento está encerrado. Se precisar, é só abrir um novo chamado. 😊`, this.via());
+    const text = this.store.saveTranscript(t.id).text;
+    const file = {
+      name: `transcricao-${code(t)}.txt`,
+      type: 'text/plain',
+      size: new Blob([text]).size,
+      url: 'data:text/plain;charset=utf-8,' + encodeURIComponent('﻿' + text),
+    };
+    this.store.reply(t.id, '📄 Transcrição completa do atendimento gerada antes do encerramento.', this.via(), true, [file]);
+    this.store.updateTicket(t.id, { status: 'Resolvido' });
+    this.router.navigate(['/tickets']);
+  }
+}
