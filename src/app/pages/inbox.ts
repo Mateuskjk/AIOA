@@ -1,5 +1,5 @@
 import { Component, ElementRef, afterRenderEffect, computed, inject, signal, viewChild } from '@angular/core';
-import { Attachment, Message, PEOPLE, Store, ago, fmt, initials } from '../data';
+import { Attachment, Message, Store, ago, fmt, initials } from '../data';
 import { Icon } from '../ui';
 import { Attachments, ComposerTools } from '../composer';
 import { Call, CallKind } from '../call';
@@ -8,7 +8,7 @@ import { Call, CallKind } from '../call';
   selector: 'app-inbox',
   imports: [Icon, ComposerTools, Attachments, Call],
   template: `
-    <div class="dm" [class.open]="current()">
+    <div class="dm dark-ui" [class.open]="current()">
       <aside class="dm-list">
         <div class="dm-list-head">
           <h1>Inbox</h1>
@@ -62,7 +62,7 @@ import { Call, CallKind } from '../call';
           <form class="dm-composer" (submit)="send(c.id, $event)">
             <app-composer-tools [target]="msg" [(files)]="files" />
             <input #msg class="input" name="body" autocomplete="off" [placeholder]="'Mensagem para ' + c.with + '…'" />
-            <button class="btn btn-primary" aria-label="Enviar"><app-icon name="send" /></button>
+            <button class="btn btn-accent" aria-label="Enviar"><app-icon name="send" /></button>
           </form>
         } @else {
           <div class="empty dm-placeholder">
@@ -94,7 +94,7 @@ export class Inbox {
   protected readonly fmt = fmt;
   protected readonly initials = initials;
   protected readonly me = computed(() => this.store.user().name);
-  protected readonly people = computed(() => PEOPLE.filter((p) => p.name !== this.me()));
+  protected readonly people = computed(() => this.store.people().filter((p) => p.name !== this.me()));
 
   protected readonly query = signal('');
   protected readonly files = signal<Attachment[]>([]);

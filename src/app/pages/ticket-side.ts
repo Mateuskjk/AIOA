@@ -1,8 +1,9 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { AGENTS, PRIORITIES, STATUSES, Store, Ticket, ago, badge, code, fmt, isClosed, sla } from '../data';
+import { AGENTS, CATEGORIES, Category, PRIORITIES, STATUSES, Store, Ticket, ago, badge, code, fmt, isClosed, isResolved, sla } from '../data';
 import { Attachments } from '../composer';
 import { Icon } from '../ui';
+import { Select, toOptions } from '../select';
 
 type Panel = 'detalhes' | 'atividade' | 'kb' | 'forum' | 'report' | 'conversas';
 const PANEL_KEY = 'aioa:ticket-panel';
@@ -10,7 +11,7 @@ const PANEL_KEY = 'aioa:ticket-panel';
 /** Right-hand rail of the ticket screen: quick-access panels that can drop content into the reply. */
 @Component({
   selector: 'app-ticket-side',
-  imports: [Icon, RouterLink, Attachments],
+  imports: [Icon, RouterLink, Attachments, Select],
   host: { class: 'td-side', '[class.collapsed]': '!panel()' },
   template: `
     @if (panel(); as p) {
@@ -23,20 +24,19 @@ const PANEL_KEY = 'aioa:ticket-panel';
         @switch (p) {
           @case ('detalhes') {
             <label class="field">Status
-              <select class="input" #s (change)="store.updateTicket(t().id, { status: $any(s.value) })">
-                @for (x of statuses; track x) { <option [selected]="x === t().status">{{ x }}</option> }
-              </select>
+              <app-select label="Status" [options]="statusOptions" [value]="t().status" (valueChange)="store.updateTicket(t().id, { status: $any($event) })" />
             </label>
             <label class="field">Prioridade
-              <select class="input" #pr (change)="store.updateTicket(t().id, { priority: $any(pr.value) })">
-                @for (x of priorities; track x) { <option [selected]="x === t().priority">{{ x }}</option> }
-              </select>
+              <app-select label="Prioridade" [options]="priorityOptions" [value]="t().priority" (valueChange)="store.updateTicket(t().id, { priority: $any($event) })" />
             </label>
             <label class="field">Responsável
-              <select class="input" #a (change)="store.updateTicket(t().id, { assignee: a.value || null })">
-                <option value="">Sem responsável</option>
-                @for (x of agents; track x) { <option [selected]="x === t().assignee">{{ x }}</option> }
-              </select>
+              <app-select label="Responsável" [options]="assigneeOptions" [value]="t().assignee ?? ''" (valueChange)="store.updateTicket(t().id, { assignee: $event || null })" />
+            </label>
+            <label class="field">Categoria
+              <app-select label="Categoria" [options]="categoryOptions" [value]="t().category" (valueChange)="setCategory($any($event))" />
+            </label>
+            <label class="field">Subcategoria
+              <app-select label="Subcategoria" [options]="subcategoryOptions()" [value]="t().subcategory" (valueChange)="store.updateTicket(t().id, { subcategory: $event })" />
             </label>
             <dl>
               <dt>Código</dt><dd>{{ code(t()) }}</dd>
@@ -138,7 +138,6 @@ const PANEL_KEY = 'aioa:ticket-panel';
               }
             </div>
             <button class="btn" (click)="insert.emit(reportText())"><app-icon name="plus" /> Inserir resumo na conversa</button>
-            <a class="muted" routerLink="/report">Abrir relatório completo</a>
           }
 
           @case ('conversas') {
@@ -182,6 +181,18 @@ export class TicketSide {
   protected readonly statuses = STATUSES;
   protected readonly priorities = PRIORITIES;
   protected readonly agents = AGENTS;
+  protected readonly categories = Object.keys(CATEGORIES) as Category[];
+  protected readonly subcategories = computed(() => CATEGORIES[this.t().category] ?? []);
+  protected readonly statusOptions = toOptions(STATUSES);
+  protected readonly priorityOptions = toOptions(PRIORITIES);
+  protected readonly assigneeOptions = [{ value: '', label: 'Sem responsável' }, ...toOptions(AGENTS, 'users')];
+  protected readonly categoryOptions = toOptions(Object.keys(CATEGORIES));
+  protected readonly subcategoryOptions = computed(() => toOptions(this.subcategories()));
+
+  /** A new category resets the subcategory to that category's first one. */
+  protected setCategory(category: Category) {
+    this.store.updateTicket(this.t().id, { category, subcategory: CATEGORIES[category][0] });
+  }
   protected readonly ago = ago;
   protected readonly badge = badge;
   protected readonly code = code;
@@ -269,14 +280,14 @@ export class TicketSide {
 
   protected readonly report = computed(() => {
     const ts = this.store.tickets().filter((o) => o.company === this.t().company);
-    const done = ts.filter(isClosed);
+    const done = ts.filter(isResolved);
     const hrs = done.map((o) => ((o.resolvedAt ?? o.updatedAt) - o.createdAt) / 36e5);
     const systems = [...new Set(ts.map((o) => o.system))];
     const rows = systems.map((label) => ({ label, n: ts.filter((o) => o.system === label).length }));
     const max = Math.max(1, ...rows.map((r) => r.n));
     return {
       total: ts.length,
-      open: ts.length - done.length,
+      open: ts.filter((o) => !isClosed(o)).length,
       avg: hrs.length ? Math.round(hrs.reduce((a, b) => a + b, 0) / hrs.length) : null,
       sla: done.length ? Math.round((done.filter((o) => !sla(o).late).length / done.length) * 100) : null,
       bySystem: rows.sort((a, b) => b.n - a.n).map((r) => ({ ...r, pct: (r.n / max) * 100 })),

@@ -1,96 +1,122 @@
 import { Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { COMPANIES, SYSTEMS, Store, ago, badge, code, isClosed, sla } from '../data';
+import { Category, Store, Ticket, countBy, duration, isClosed, isResolved, kpiStats, monthlyTrend, perAgentAverage } from '../data';
+import { AreaChart, ColumnChart, Datum, Donut, Pie3D, RankBars } from '../charts';
 import { Icon } from '../ui';
+
+/** Pie order, as requested: Bug, Funcionalidade, Melhorias, Acesso, Suporte de T.I., Dashboard. */
+const PIE_ORDER: Category[] = ['Bug', 'Funcionalidade', 'Melhorias', 'Acesso', 'Suporte de T.I.', 'Dashboard'];
 
 @Component({
   selector: 'app-dashboard',
-  imports: [Icon, RouterLink],
+  imports: [Icon, RouterLink, AreaChart, ColumnChart, Donut, Pie3D, RankBars],
   template: `
-    <div class="page">
+    <div class="page wide">
       <div class="page-head">
-        <div>
+        <div class="head-main">
           <span class="eyebrow">Dashboard</span>
-          <h1>Olá, {{ store.user().name.split(' ')[0] }} 👋</h1>
+          <div class="title-row">
+            <h1>Olá, {{ store.user().name.split(' ')[0] }} 👋</h1>
+            <a class="btn btn-accent" routerLink="/tickets"><app-icon name="ticket" /> Ver tickets</a>
+          </div>
           <p>Sua operação de suporte em tempo real.</p>
         </div>
-        <a class="btn btn-primary" routerLink="/tickets"><app-icon name="ticket" /> Ver tickets</a>
       </div>
 
       <div class="grid kpis">
-        <div class="card kpi dark"><span class="label"><app-icon name="ticket" /> Chamados ativos</span><span class="value">{{ stats().open }}</span></div>
-        <div class="card kpi"><span class="label"><app-icon name="flame" /> Urgentes</span><span class="value">{{ stats().urgent }}</span></div>
-        <div class="card kpi"><span class="label"><app-icon name="alert" /> SLA atrasado</span><span class="value" [class.sla-late]="stats().late">{{ stats().late }}</span></div>
-        <div class="card kpi"><span class="label"><app-icon name="check" /> Resolvidos</span><span class="value">{{ stats().closed }}</span></div>
-        <div class="card kpi"><span class="label"><app-icon name="clock" /> SLA cumprido</span><span class="value">{{ stats().slaPct }}%</span></div>
+        @for (k of kpis(); track k.label) {
+          <a class="card kpi" routerLink="/tickets" [attr.aria-label]="k.label + ': ' + k.value + '. Ver tickets'">
+            <span class="label"><span class="kpi-icon" [class]="'kpi-icon tone-' + k.tone"><app-icon [name]="k.icon" /></span>{{ k.label }}</span>
+            <span class="value">{{ k.value }}</span>
+            <small class="kpi-hint">{{ k.hint }}</small>
+          </a>
+        }
+      </div>
+
+      <div class="grid charts">
+        <section class="chart-card">
+          <h2 class="chart-title">Tickets abertos por empresa</h2>
+          <app-column-chart [data]="openByCompany()" unit="em aberto" aria="Tickets em aberto por empresa" />
+        </section>
+        <section class="chart-card">
+          <h2 class="chart-title">Tickets por categoria</h2>
+          <app-pie-3d [data]="byCategory()" unit="tickets" aria="Tickets por categoria" />
+        </section>
+        <section class="chart-card">
+          <h2 class="chart-title">Encerrados por empresa</h2>
+          <app-column-chart [data]="resolvedByCompany()" unit="encerrados" aria="Tickets encerrados por empresa" />
+        </section>
+        <section class="chart-card">
+          <h2 class="chart-title">Usuários que mais abrem tickets</h2>
+          <app-rank-bars [data]="openers()" />
+        </section>
+        <section class="chart-card">
+          <h2 class="chart-title">Subcategorias</h2>
+          <app-donut [data]="bySubcategory()" unit="tickets" aria="Tickets por subcategoria" />
+        </section>
+        <section class="chart-card">
+          <h2 class="chart-title">HelpDeskers que mais fecham tickets</h2>
+          <app-rank-bars [data]="closers()" />
+        </section>
       </div>
 
       <div class="grid two">
-        <div class="card">
-          <div class="card-head"><h2>Ativos por sistema</h2></div>
-          <div class="card-body bars">
-            @for (r of bySystem(); track r.label) {
-              <div class="bar-row"><span>{{ r.label }}</span><div class="bar"><i [style.width.%]="r.pct"></i></div><b>{{ r.n }}</b></div>
-            }
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-head"><h2>Ativos por empresa</h2></div>
-          <div class="card-body bars">
-            @for (r of byCompany(); track r.label) {
-              <div class="bar-row"><span [title]="r.label">{{ r.label }}</span><div class="bar accent"><i [style.width.%]="r.pct"></i></div><b>{{ r.n }}</b></div>
-            }
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-head"><h2>Precisam de atenção</h2><a class="muted" routerLink="/tickets">Ver todos</a></div>
-        <ul class="list tickets">
-          @for (t of attention(); track t.id) {
-            <li class="clickable" [routerLink]="['/tickets', t.id]">
-              <i class="dot" [class]="badge(t.priority)"></i>
-              <div class="grow"><div class="t-head"><b class="code">{{ code(t) }}</b><strong>{{ t.title }}</strong></div>
-                <small class="muted">{{ t.company }} · {{ t.system }} · {{ ago(t.updatedAt) }}</small></div>
-              <div class="t-side"><span [class]="badge(t.status)">{{ t.status }}</span>
-                <small class="muted" [class.sla-late]="sla(t).late">{{ sla(t).label }}</small></div>
-            </li>
-          }
-        </ul>
+        <section class="chart-card">
+          <h2 class="chart-title">Tickets por mês</h2>
+          <app-area-chart [data]="perMonth()" unit="tickets abertos" aria="Tickets abertos por mês nos últimos 12 meses" />
+        </section>
+        <section class="chart-card">
+          <h2 class="chart-title">Média de encerrados por HelpDesker</h2>
+          <app-area-chart [data]="perAgent()" unit="encerrados por mês" aria="Média mensal de tickets encerrados por HelpDesker" />
+        </section>
       </div>
     </div>
   `,
 })
 export class Dashboard {
   protected readonly store = inject(Store);
-  protected readonly ago = ago;
-  protected readonly badge = badge;
-  protected readonly code = code;
-  protected readonly sla = sla;
 
-  private readonly active = computed(() => this.store.tickets().filter((t) => !isClosed(t)));
-
-  protected readonly stats = computed(() => {
-    const closed = this.store.tickets().filter(isClosed);
-    const met = closed.filter((t) => !sla(t).late).length;
-    return {
-      open: this.active().length,
-      urgent: this.active().filter((t) => t.priority === 'Urgente').length,
-      late: this.active().filter((t) => sla(t).late).length,
-      closed: closed.length,
-      slaPct: closed.length ? Math.round((met / closed.length) * 100) : 100,
-    };
+  protected readonly kpis = computed(() => {
+    const k = kpiStats(this.store.tickets());
+    const pct = (n: number) => (k.total ? `${Math.round((n / k.total) * 100)}% do total` : '—');
+    return [
+      { label: 'Total de tickets', icon: 'ticket', tone: 'navy', value: k.total, hint: 'Todos os chamados registrados' },
+      { label: 'Aguardando atendimento', icon: 'hourglass', tone: 'amber', value: k.waiting, hint: 'Abertos, sem início' },
+      { label: 'Em atendimento', icon: 'headset', tone: 'lavender', value: k.inProgress, hint: 'Em andamento ou aguardando cliente' },
+      { label: 'Encerrados', icon: 'check', tone: 'green', value: k.resolved, hint: pct(k.resolved) },
+      { label: 'Cancelados', icon: 'circle-x', tone: 'gray', value: k.cancelled, hint: pct(k.cancelled) },
+      { label: 'Reprovados', icon: 'thumbs-down', tone: 'red', value: k.rejected, hint: pct(k.rejected) },
+      { label: 'Duração do atendimento', icon: 'timer', tone: 'blue', value: k.avgHours == null ? '—' : duration(k.avgHours), hint: 'Média até a resolução' },
+      { label: 'Taxa de resolução', icon: 'trending-up', tone: 'green', value: k.rate == null ? '—' : `${k.rate}%`, hint: `Resolvidos de ${k.finished} finalizados` },
+    ];
   });
 
-  private group(keys: readonly string[], key: 'system' | 'company') {
-    const rows = keys.map((label) => ({ label, n: this.active().filter((t) => t[key] === label).length }));
-    const max = Math.max(1, ...rows.map((r) => r.n));
-    return rows.map((r) => ({ ...r, pct: (r.n / max) * 100 }));
+  /** Companies with at least one ticket, largest first, labelled by their short code. */
+  private perCompany(ts: Ticket[]): Datum[] {
+    return this.store.customers().map((c) => ({ label: c.short, name: c.name, value: ts.filter((t) => t.company === c.name).length }))
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value);
   }
-  protected readonly bySystem = computed(() => this.group(SYSTEMS, 'system'));
-  protected readonly byCompany = computed(() => this.group(COMPANIES, 'company'));
+  protected readonly openByCompany = computed(() => this.perCompany(this.store.tickets().filter((t) => !isClosed(t))));
+  protected readonly resolvedByCompany = computed(() => this.perCompany(this.store.tickets().filter(isResolved)));
+  /** Top 5 requesters and closers. */
+  protected readonly openers = computed(() => countBy(this.store.tickets().map((t) => t.requester), 5));
+  protected readonly closers = computed(() =>
+    countBy(this.store.tickets().filter(isResolved).map((t) => t.closedBy ?? t.assignee ?? '—'), 5),
+  );
 
-  protected readonly attention = computed(() =>
-    [...this.active()].sort((a, b) => Number(sla(b).late) - Number(sla(a).late) || a.createdAt - b.createdAt).slice(0, 6),
+  /** Top 5 subcategories; the rest fold into "Outras". */
+  protected readonly bySubcategory = computed(() => {
+    const all = countBy(this.store.tickets().map((t) => t.subcategory));
+    const rest = all.slice(5).reduce((a, r) => a + r.value, 0);
+    return [...all.slice(0, 5), ...(rest ? [{ label: 'Outras', value: rest }] : [])];
+  });
+
+  /** Trends: tickets opened per month (12 months) and each HelpDesker's monthly average of resolved tickets. */
+  protected readonly perMonth = computed(() => monthlyTrend(this.store.tickets()).map((m) => ({ label: m.label, value: m.opened })));
+  protected readonly perAgent = computed(() => perAgentAverage(this.store.tickets()));
+
+  protected readonly byCategory = computed(() =>
+    PIE_ORDER.map((c) => ({ label: c, value: this.store.tickets().filter((t) => t.category === c).length })),
   );
 }

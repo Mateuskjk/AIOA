@@ -1,11 +1,14 @@
-import { Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map } from 'rxjs';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { Store, badge, code, initials } from './data';
+import { Store, code, initials } from './data';
 import { Icon, Logo } from './ui';
+import { Notifier } from './notifier';
+import { Backend } from './backend';
 
 const COLLAPSE_KEY = 'aioa:sidebar';
+const bare = (url: string) => url === '/' || url.startsWith('/#') || url.startsWith('/portal') || url.startsWith('/login');
 
 @Component({
   selector: 'app-root',
@@ -41,28 +44,20 @@ const COLLAPSE_KEY = 'aioa:sidebar';
           }
         </nav>
 
-        <div class="sb-section"><app-icon name="pin" /><span>Fixados</span></div>
-        <div class="sb-pins">
-          @for (t of store.pinned(); track t.id) {
-            <a class="sb-item pin" [routerLink]="['/tickets', t.id]" routerLinkActive="active" [title]="code(t) + ' ' + t.title">
-              <i class="dot" [class]="badge(t.priority)"></i><span>{{ code(t) }} {{ t.title }}</span>
-            </a>
-          } @empty {
-            <p class="sb-empty">Fixe chamados para acesso rápido.</p>
-          }
-        </div>
-
         <div class="sb-user">
           <div class="avatar">{{ initials() }}</div>
           <div class="who"><strong>{{ store.user().name }}</strong><small>{{ store.user().role }}</small></div>
           <a class="icon-btn" routerLink="/settings" aria-label="Configurações" title="Configurações"><app-icon name="settings" /></a>
+          @if (backend.enabled) {
+            <button class="icon-btn sb-logout" aria-label="Sair" title="Sair" (click)="logout()"><app-icon name="back" /></button>
+          }
         </div>
       </aside>
 
       <main class="main"><router-outlet /></main>
     </div>
 
-    <dialog #search class="palette" (close)="query.set('')">
+    <dialog #search class="palette" (close)="query.set('')" (click)="$event.target === search && search.close()">
       <div class="palette-input">
         <app-icon name="search" />
         <input #q placeholder="Buscar chamados por número, título, empresa ou sistema…" [value]="query()"
@@ -82,7 +77,6 @@ const COLLAPSE_KEY = 'aioa:sidebar';
 export class App {
   protected readonly store = inject(Store);
   private readonly router = inject(Router);
-  protected readonly badge = badge;
   protected readonly code = code;
   protected readonly nav = [
     { path: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
@@ -91,7 +85,6 @@ export class App {
     { path: '/tickets', label: 'Tickets', icon: 'ticket' },
     { path: '/ticket-history', label: 'Histórico de tickets', icon: 'archive' },
     { path: '/forum', label: 'Fórum', icon: 'forum' },
-    { path: '/report', label: 'Report', icon: 'report' },
     { path: '/kb', label: 'Base de conhecimento', icon: 'book' },
     { path: '/customers', label: 'Clientes', icon: 'users' },
   ];
@@ -106,14 +99,53 @@ export class App {
 
   private readonly dialog = viewChild<ElementRef<HTMLDialogElement>>('search');
 
-  /** The customer portal has its own layout, without the team's sidebar. */
+  /** The institutional site (/) and the customer portal have their own layout, without the team's sidebar. */
   protected readonly portal = toSignal(
     this.router.events.pipe(
       filter((e): e is NavigationEnd => e instanceof NavigationEnd),
-      map((e) => e.urlAfterRedirects.startsWith('/portal')),
+      map((e) => bare(e.urlAfterRedirects)),
     ),
-    { initialValue: typeof location !== 'undefined' && location.pathname.startsWith('/portal') },
+    { initialValue: typeof location !== 'undefined' && bare(location.pathname) },
   );
+  private readonly notifier = inject(Notifier);
+  /** Created at startup so the Store syncs with Supabase when it's configured. */
+  protected readonly backend = inject(Backend);
+
+  protected async logout() {
+    await this.backend.signOut();
+    this.router.navigate(['/login']);
+  }
+
+  constructor() {
+    // Auto-growing textareas: CSS field-sizing does it natively; browsers without it get this small fallback.
+    if (typeof document !== 'undefined' && typeof CSS !== 'undefined' && !CSS.supports('field-sizing', 'content')) {
+      document.addEventListener('input', (e) => {
+        const t = e.target;
+        if (!(t instanceof HTMLTextAreaElement)) return;
+        t.style.height = 'auto';
+        t.style.height = `${t.scrollHeight + 2}px`;
+      });
+    }
+  }
+  /** Highest notice id already announced; starts at what's on screen so old notices stay quiet. */
+  private lastNotice = Math.max(0, ...this.store.notices().map((n) => n.id));
+
+  /** Every new team notification plays the chime and shows a browser notification (not inside the customer portal). */
+  private readonly announce = effect(() => {
+    const fresh = this.store.notices().filter((n) => n.id > this.lastNotice);
+    if (!fresh.length) return;
+    this.lastNotice = Math.max(...fresh.map((n) => n.id));
+    if (untracked(this.portal)) return;
+    const prefs = untracked(this.store.prefs);
+    if (prefs.sound) this.notifier.chime();
+    if (prefs.push) for (const n of fresh) {
+      this.notifier.push(n.text, () => {
+        this.store.markRead(n.id);
+        this.router.navigate(['/tickets', n.ticketId]);
+      });
+    }
+  });
+
   protected readonly query = signal('');
   protected readonly results = computed(() => {
     const q = this.query().trim().toLowerCase().trim();
