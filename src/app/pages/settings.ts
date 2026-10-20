@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { DEFAULT_PREFS, Prefs, Store, initials } from '../data';
 import { Notifier } from '../notifier';
 import { Icon } from '../ui';
@@ -10,6 +10,7 @@ const SECTIONS = [
   { id: 'notifications', label: 'Notificações', icon: 'bell', hint: 'Som e alertas do navegador' },
   { id: 'service', label: 'Atendimento', icon: 'headset', hint: 'Encerramento e transcrição' },
   { id: 'tickets', label: 'Tickets', icon: 'ticket', hint: 'Visualização padrão' },
+  { id: 'widget', label: 'Widget (embed)', icon: 'monitor-up', hint: 'Código para instalar o assistente' },
 ] as const;
 
 @Component({
@@ -92,6 +93,20 @@ const SECTIONS = [
                 </div>
               </div>
             }
+            @case ('widget') {
+              <h2>Widget (embed)</h2>
+              <p class="muted set-lead">Gere o código para instalar o Assistente AIOA em outro sistema (LexFlow, LexHub…). Cole antes de <code>&lt;/body&gt;</code> nas páginas onde o botão de suporte deve aparecer.</p>
+              <div class="set-form">
+                <label class="field full">Endereço do AIOA<input #o class="input" [value]="embedOrigin()" (input)="embedOrigin.set(o.value.trim())" placeholder="https://suporte.lexgroup.com.br" /></label>
+              </div>
+              <div class="embed-code">
+                <pre><code>{{ embedSnippet() }}</code></pre>
+                <div class="set-actions">
+                  <button class="btn btn-accent" (click)="copyEmbed()"><app-icon name="check" /> {{ copied() ? 'Copiado!' : 'Copiar código' }}</button>
+                  <a class="btn" href="/lexflow-demo.html" target="_blank" rel="noopener"><app-icon name="eye" /> Ver demonstração</a>
+                </div>
+              </div>
+            }
           }
         </section>
       </div>
@@ -108,6 +123,17 @@ export class Settings {
   protected readonly saved = signal(false);
   protected readonly prefs = this.store.prefs;
   protected readonly view = signal<'list' | 'kanban'>(readView());
+
+  // Widget (embed) code generator
+  protected readonly embedOrigin = signal(typeof location !== 'undefined' ? location.origin : '');
+  protected readonly copied = signal(false);
+  protected readonly embedSnippet = computed(() => `<script src="${this.embedOrigin().replace(/\/+$/, '')}/widget.js" defer></script>`);
+
+  protected async copyEmbed() {
+    await navigator.clipboard?.writeText(this.embedSnippet());
+    this.copied.set(true);
+    setTimeout(() => this.copied.set(false), 2000);
+  }
 
   protected preview() {
     return this.prefs().closing.replaceAll('{cliente}', 'Carla').replaceAll('{codigo}', 'A-142');

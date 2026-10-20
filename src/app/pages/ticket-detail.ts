@@ -1,6 +1,6 @@
-import { Component, ElementRef, afterRenderEffect, computed, inject, input, linkedSignal, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, afterRenderEffect, computed, effect, inject, input, linkedSignal, signal, untracked, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { AGENTS, Attachment, CHANNELS, Channel, STATUSES, Status, Store, Ticket, badge, code, fmt, initials, sla } from '../data';
+import { AGENTS, Attachment, CHANNELS, Channel, STATUSES, Status, Store, Ticket, badge, code, fmt, initials, isClosed, sla } from '../data';
 import { Icon } from '../ui';
 import { Attachments, ComposerTools } from '../composer';
 import { TicketSide } from './ticket-side';
@@ -101,7 +101,7 @@ import { Call, CallKind } from '../call';
                     [placeholder]="(note() ? 'Escreva uma nota interna para a equipe…' : 'Escreva uma resposta para ' + t.requester + '…') + ' Cole prints com Ctrl+V.'"></textarea>
                   <div class="cmp-foot">
                     <app-composer-tools [target]="ta" [(files)]="files" />
-                    <button class="btn btn-accent" title="Ctrl + Enter"><app-icon name="send" /> {{ note() ? 'Salvar nota' : 'Enviar' }}</button>
+                    <button class="btn btn-accent" [disabled]="closed(t)" [title]="closed(t) ? 'Chamado encerrado: mude o status para responder' : 'Ctrl + Enter'"><app-icon name="send" /> {{ note() ? 'Salvar nota' : 'Enviar' }}</button>
                   </div>
                 </div>
               </form>
@@ -146,6 +146,12 @@ export class TicketDetail {
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
 
   constructor() {
+    // Opening a new, unassigned ticket starts the service: it's assigned to whoever opened it and
+    // moves to "Em andamento" — from then on the customer can reply (portal and widget).
+    effect(() => {
+      const t = this.ticket();
+      if (t && t.status === 'Aberto' && !t.assignee) untracked(() => this.store.updateTicket(t.id, { assignee: this.store.user().name, status: 'Em andamento' }));
+    });
     // Keep the newest message in view when the thread opens or grows.
     afterRenderEffect(() => {
       this.timeline().length;
@@ -209,7 +215,10 @@ export class TicketDetail {
     (e.target as HTMLTextAreaElement).form?.requestSubmit();
   }
 
+  protected readonly closed = isClosed;
+
   protected send(t: Ticket, e: Event) {
+    if (isClosed(t)) return e.preventDefault(); // Ctrl+Enter too
     e.preventDefault();
     const form = e.target as HTMLFormElement;
     const body = String(new FormData(form).get('body') ?? '').trim();

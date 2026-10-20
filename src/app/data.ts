@@ -156,6 +156,8 @@ export interface Remote {
   addMember(company: Company, m: Member): void;
   removeMember(company: Company, email: string): void;
   setSystems(company: Company, systems: System[]): void;
+  setCustomerActive(company: Company, active: boolean): void;
+  setMemberActive(company: Company, email: string, active: boolean): void;
 }
 
 /** Archived full conversation of a resolved ticket. */
@@ -270,6 +272,11 @@ export function duration(hours: number) {
 export const code = (t: Pick<Ticket, 'id'>) => 'A-' + String(t.id).padStart(3, '0');
 /** Solved by the team. */
 export const isResolved = (t: Ticket) => t.status === 'Resolvido' || t.status === 'Fechado';
+/**
+ * The customer can reply once the team has started on the ticket, and never after it's closed
+ * (a new problem means a new ticket). Also enforced by the database.
+ */
+export const canCustomerReply = (t: Ticket) => (t.assignee != null || t.status !== 'Aberto') && !isClosed(t);
 /** Finished in any way: solved, cancelled or rejected. */
 export const isClosed = (t: Ticket) => isResolved(t) || t.status === 'Cancelado' || t.status === 'Reprovado';
 
@@ -385,6 +392,8 @@ export interface Customer {
   systems: System[];
   /** Customer users allowed into the portal to open and follow tickets. */
   members: Member[];
+  /** false = deactivated: nobody from the company can sign in (data is kept). */
+  active?: boolean;
 }
 
 /** A customer user (usuário-cliente). */
@@ -393,6 +402,8 @@ export interface Member {
   email: string;
   role: string;
   since: number;
+  /** false = deactivated: this person can't sign in. */
+  active?: boolean;
 }
 
 /** Stable Tickets-tab id for a customer, e.g. "LA - AM" -> "co-la-am". */
@@ -806,6 +817,20 @@ export class Store {
   setSystems(company: Company, systems: System[]) {
     this.remote?.setSystems(company, systems);
     this.db.update((db) => ({ ...db, customers: db.customers.map((x) => (x.name === company ? { ...x, systems } : x)) }));
+  }
+
+  /** Activates or deactivates a customer company (its members keep their data but lose access). */
+  setCustomerActive(company: Company, active: boolean) {
+    this.remote?.setCustomerActive(company, active);
+    this.db.update((db) => ({ ...db, customers: db.customers.map((x) => (x.name === company ? { ...x, active } : x)) }));
+  }
+
+  setMemberActive(company: Company, email: string, active: boolean) {
+    this.remote?.setMemberActive(company, email, active);
+    this.db.update((db) => ({
+      ...db,
+      customers: db.customers.map((x) => (x.name === company ? { ...x, members: x.members.map((m) => (m.email === email ? { ...m, active } : m)) } : x)),
+    }));
   }
 
   removeMember(company: Company, email: string) {

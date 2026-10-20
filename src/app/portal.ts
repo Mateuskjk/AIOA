@@ -1,6 +1,6 @@
 import { Component, DestroyRef, ElementRef, OnInit, afterNextRender, afterRenderEffect, computed, inject, input, signal, viewChild } from '@angular/core';
 import { CanActivateFn, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { AGENTS, Article, Attachment, CATEGORIES, Category, Company, SYSTEMS, SYSTEM_INFO, Store, System, Ticket, staffEmail, ago, badge, code, fmt, initials, isClosed } from './data';
+import { AGENTS, Article, Attachment, CATEGORIES, Category, Company, SYSTEMS, SYSTEM_INFO, Store, System, Ticket, canCustomerReply, staffEmail, ago, badge, code, fmt, initials, isClosed } from './data';
 import { Attachments, ComposerTools } from './composer';
 import { Icon, Logo } from './ui';
 import { Select, toOptions } from './select';
@@ -196,7 +196,7 @@ const PHRASES = [
             </div>
           }
 
-          <a class="muted login-back" routerLink="/">← Voltar ao site</a>
+          @if (mode() === 'login') { <a class="muted login-back" routerLink="/">← Voltar ao site</a> }
         </form>
       </section>
     </div>
@@ -296,6 +296,7 @@ export class PortalLogin {
     }
     for (const c of this.store.customers()) {
       const m = c.members.find((x) => x.email.toLowerCase() === email);
+      if (m && (m.active === false || c.active === false)) return this.error.set('Seu acesso está desativado. Fale com a equipe AIOA.');
       if (m) {
         this.store.portalLogin({ company: c.name, name: m.name });
         this.router.navigate(['/portal']);
@@ -511,11 +512,11 @@ export class PortalNew {
             <span class="avatar sm">{{ initials(me()) }}</span>
             <div class="box">
               @if (files().length) { <app-attachments [(files)]="files" removable /> }
-              <textarea #ta name="body" rows="2" (keydown.control.enter)="submit($event)"
-                [placeholder]="closed(t) ? 'Responder reabre o chamado…' : 'Escreva uma mensagem para o suporte…'"></textarea>
+              <textarea #ta name="body" rows="2" (keydown.control.enter)="submit($event)" [disabled]="!canReply(t)"
+                [placeholder]="closed(t) ? 'Chamado encerrado: para um novo problema, abra um novo chamado.' : !canReply(t) ? 'Aguardando a equipe AIOA iniciar o atendimento para você poder responder…' : 'Escreva uma mensagem para o suporte…'"></textarea>
               <div class="cmp-foot">
                 <app-composer-tools [target]="ta" [(files)]="files" />
-                <button class="btn btn-accent" title="Ctrl + Enter">Enviar</button>
+                <button class="btn btn-accent" title="Ctrl + Enter" [disabled]="!canReply(t)">Enviar</button>
               </div>
             </div>
           </form>
@@ -534,6 +535,7 @@ export class PortalTicket implements OnInit {
   protected readonly fmt = fmt;
   protected readonly initials = initials;
   protected readonly closed = isClosed;
+  protected readonly canReply = canCustomerReply;
   protected readonly files = signal<Attachment[]>([]);
   protected readonly me = computed(() => this.store.portalUser()!.name);
 
@@ -572,7 +574,8 @@ export class PortalTicket implements OnInit {
     const form = e.target as HTMLFormElement;
     const ta = form.elements.namedItem('body') as HTMLTextAreaElement;
     const body = ta.value.trim();
-    if (!body && !this.files().length) return;
+    const t = this.ticket();
+    if (!t || !canCustomerReply(t) || (!body && !this.files().length)) return;
     this.store.customerReply(id, body, this.files());
     this.files.set([]);
     ta.value = '';
