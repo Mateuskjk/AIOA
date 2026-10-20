@@ -56,6 +56,25 @@ Quem acessa o quê é decidido pelo e-mail de quem entra (regras RLS no banco):
 No primeiro acesso por e-mail, a pessoa usa **Primeiro acesso** na tela de login para criar a senha
 (o Supabase envia um e-mail de confirmação). Pelo Google, basta entrar.
 
+## Widget de suporte (embed)
+
+Um botão laranja que abre o **Assistente AIOA** em qualquer sistema: o cliente abre o chamado em
+formato de conversa e acompanha as respostas. Ele só responde depois que alguém da equipe abrir o
+chamado (o chamado é atribuído a quem abriu e passa para *Em andamento*), e não responde mais depois
+que o chamado é encerrado.
+
+Instalação no sistema (ex.: LexFlow), antes de `</body>`:
+
+```html
+<script src="https://SEU-AIOA/widget.js" defer></script>
+```
+
+O cliente entra no assistente com a conta Google (abre uma janelinha do Google) ou com e-mail e senha;
+o login fica lembrado no navegador. Exemplo local: `http://localhost:4200/lexflow-demo.html`.
+
+Rode também as migrações `supabase/migrations/20261020*.sql` no SQL Editor (em ordem) e adicione
+`http://localhost:4200/embed/callback` (e o endereço de produção) em *Authentication › Redirect URLs*.
+
 ## Limites do protótipo
 
 - Sem o Supabase configurado, os dados ficam no `localStorage` e o login é simulado.
@@ -74,9 +93,11 @@ src/app/
   composer.ts    anexos, emoji e áudio
   call.ts        ligação e chamada de vídeo
   portal.ts      portal do cliente
+  embed.ts       assistente do widget (/embed)
   pages/         telas do painel da equipe
 src/styles.scss  tokens da marca e estilos
-supabase/        migração (tabelas, RLS, Storage) e seed
+supabase/        migrações (tabelas, RLS, Storage) e seed
+public/widget.js script do widget para outros sistemas
 scripts/         gerador do seed a partir dos dados de exemplo
 ```
 

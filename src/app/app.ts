@@ -8,7 +8,7 @@ import { Notifier } from './notifier';
 import { Backend } from './backend';
 
 const COLLAPSE_KEY = 'aioa:sidebar';
-const bare = (url: string) => url === '/' || url.startsWith('/#') || url.startsWith('/portal') || url.startsWith('/login');
+const bare = (url: string) => url === '/' || url.startsWith('/#') || url.startsWith('/portal') || url.startsWith('/login') || url.startsWith('/embed');
 
 @Component({
   selector: 'app-root',
@@ -44,13 +44,12 @@ const bare = (url: string) => url === '/' || url.startsWith('/#') || url.startsW
           }
         </nav>
 
+        <button class="sb-item sb-logout" title="Sair do AIOA" (click)="logout()"><app-icon name="back" /><span>Sair</span></button>
+
         <div class="sb-user">
           <div class="avatar">{{ initials() }}</div>
           <div class="who"><strong>{{ store.user().name }}</strong><small>{{ store.user().role }}</small></div>
           <a class="icon-btn" routerLink="/settings" aria-label="Configurações" title="Configurações"><app-icon name="settings" /></a>
-          @if (backend.enabled) {
-            <button class="icon-btn sb-logout" aria-label="Sair" title="Sair" (click)="logout()"><app-icon name="back" /></button>
-          }
         </div>
       </aside>
 
@@ -112,7 +111,7 @@ export class App {
   protected readonly backend = inject(Backend);
 
   protected async logout() {
-    await this.backend.signOut();
+    if (this.backend.enabled) await this.backend.signOut();
     this.router.navigate(['/login']);
   }
 

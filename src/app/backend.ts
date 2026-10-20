@@ -59,6 +59,22 @@ export class Backend implements Remote {
     return this.sb!.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${location.origin}/login` } });
   }
 
+  /**
+   * Google login for the widget. Google refuses to run inside an iframe, so it happens in a popup that
+   * lands on /embed/callback and hands the session back (the iframe's storage is separate on other sites).
+   */
+  googlePopupUrl() {
+    return this.sb!.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${location.origin}/embed/callback`, skipBrowserRedirect: true } });
+  }
+
+  async currentSession() {
+    return (await this.sb!.auth.getSession()).data.session;
+  }
+
+  setSession(access_token: string, refresh_token: string) {
+    return this.sb!.auth.setSession({ access_token, refresh_token });
+  }
+
   resetPassword(email: string) {
     return this.sb!.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/login` });
   }
@@ -66,6 +82,7 @@ export class Backend implements Remote {
   signOut() {
     return this.sb!.auth.signOut();
   }
+
 
   /** Who the session is (team or customer) and loading their data. */
   private async boot(session?: Session | null): Promise<Role> {
@@ -87,10 +104,11 @@ export class Backend implements Remote {
       role = 'tech';
       this.store.setUser({ name: me.name, role: me.role });
     } else {
-      const { data: m } = await this.sb!.from('members').select('name, companies(name)').ilike('email', email).maybeSingle();
-      if (m) {
+      const { data: m } = await this.sb!.from('members').select('name, active, companies(name, active)').ilike('email', email).maybeSingle();
+      const co = m?.companies as unknown as { name: string; active: boolean } | undefined;
+      if (m && m.active && co?.active) {
         role = 'member';
-        this.store.portalLogin({ name: m.name, company: (m.companies as unknown as { name: string }).name });
+        this.store.portalLogin({ name: m.name, company: co.name });
       }
     }
     this.role.set(role);
@@ -138,8 +156,8 @@ export class Backend implements Remote {
 
   private toCustomer(c: Row, members: Row[]): Customer {
     return {
-      name: c.name, short: c.short, contact: c.contact, email: c.email, phone: c.phone, city: c.city, since: c.since, systems: c.systems,
-      members: members.filter((m) => m.company_id === c.id).map((m): Member => ({ name: m.name, email: m.email, role: m.role, since: ms(m.since)! })),
+      name: c.name, short: c.short, contact: c.contact, email: c.email, phone: c.phone, city: c.city, since: c.since, systems: c.systems, active: c.active,
+      members: members.filter((m) => m.company_id === c.id).map((m): Member => ({ name: m.name, email: m.email, role: m.role, since: ms(m.since)!, active: m.active })),
     };
   }
 
@@ -333,6 +351,14 @@ export class Backend implements Remote {
 
   removeMember(company: Company, email: string) {
     void this.sb!.from('members').delete().eq('company_id', this.companyIds.get(company)).ilike('email', email).then(({ error }) => this.fail(error));
+  }
+
+  setCustomerActive(company: Company, active: boolean) {
+    void this.sb!.from('companies').update({ active }).eq('id', this.companyIds.get(company)).then(({ error }) => this.fail(error));
+  }
+
+  setMemberActive(company: Company, email: string, active: boolean) {
+    void this.sb!.from('members').update({ active }).eq('company_id', this.companyIds.get(company)).ilike('email', email).then(({ error }) => this.fail(error));
   }
 
   setSystems(company: Company, systems: System[]) {

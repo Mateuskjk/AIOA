@@ -23,12 +23,13 @@ import { Icon } from '../ui';
 
       <div class="grid cust-grid">
         @for (r of rows(); track r.c.name) {
-          <button class="card cust-card" (click)="openCompany(r.c.name)" [attr.aria-label]="'Abrir ' + r.c.name">
+          <button class="card cust-card" [class.inactive]="r.c.active === false" (click)="openCompany(r.c.name)" [attr.aria-label]="'Abrir ' + r.c.name">
             <div class="cust-head">
               <span class="avatar">{{ initials(r.c.name) }}</span>
               <div><strong>{{ r.c.name }}</strong><small class="muted">{{ r.c.city || 'Cidade não informada' }} · cliente desde {{ r.c.since }}</small></div>
               <span class="cust-short">{{ r.c.short }}</span>
             </div>
+            @if (r.c.active === false) { <span class="inactive-tag"><app-icon name="lock" /> Empresa desativada</span> }
             <div class="cust-stats">
               <div><b>{{ r.open }}</b><small>Ativos</small></div>
               <div><b>{{ r.closed }}</b><small>Resolvidos</small></div>
@@ -47,9 +48,14 @@ import { Icon } from '../ui';
         <header class="co-head">
           <span class="avatar co-avatar">{{ initials(r.c.name) }}</span>
           <div class="co-title">
-            <div class="co-name"><h2>{{ r.c.name }}</h2><span class="cust-short">{{ r.c.short }}</span></div>
+            <div class="co-name"><h2>{{ r.c.name }}</h2><span class="cust-short">{{ r.c.short }}</span>
+              @if (r.c.active === false) { <span class="inactive-tag"><app-icon name="lock" /> Desativada</span> }</div>
             <small class="muted">{{ r.c.city || 'Cidade não informada' }} · cliente desde {{ r.c.since }}</small>
           </div>
+          <label class="co-active" [title]="r.c.active === false ? 'Reativar: os membros ativos voltam a entrar' : 'Desativar: ninguém da empresa consegue entrar'">
+            <span>{{ r.c.active === false ? 'Inativa' : 'Ativa' }}</span>
+            <input type="checkbox" class="switch" [checked]="r.c.active !== false" (change)="setCompanyActive(r.c.name, $any($event.target))" aria-label="Empresa ativa" />
+          </label>
           <button class="icon-btn" aria-label="Fechar" (click)="companyDlg.close()"><app-icon name="x" /></button>
         </header>
 
@@ -84,10 +90,12 @@ import { Icon } from '../ui';
             </p>
             <ul class="member-list">
               @for (m of r.c.members; track m.email) {
-                <li>
+                <li [class.inactive]="m.active === false">
                   <span class="avatar sm">{{ initials(m.name) }}</span>
                   <div class="grow"><strong>{{ m.name }}</strong><small class="muted">{{ m.email }} · {{ m.role }} · desde {{ fmt(m.since) }}</small></div>
                   <small class="muted member-count" [title]="'Chamados abertos por ' + m.name">{{ opened(m.name) }} chamados</small>
+                  <input type="checkbox" class="switch" [checked]="m.active !== false" [attr.aria-label]="(m.active === false ? 'Reativar ' : 'Desativar ') + m.name"
+                    [title]="m.active === false ? 'Desativado: não consegue entrar' : 'Ativo'" (change)="store.setMemberActive(r.c.name, m.email, $any($event.target).checked)" />
                   <button class="tt-x" [attr.aria-label]="'Remover ' + m.name" title="Remover acesso" (click)="removeMember(r.c.name, m.email, m.name)"><app-icon name="trash" /></button>
                 </li>
               } @empty {
@@ -139,7 +147,7 @@ import { Icon } from '../ui';
   `,
 })
 export class Customers {
-  private readonly store = inject(Store);
+  protected readonly store = inject(Store);
   private readonly router = inject(Router);
   protected readonly systems = SYSTEMS.filter((s) => s !== 'Outros');
   protected readonly fmt = fmt;
@@ -190,6 +198,12 @@ export class Customers {
     const err = this.store.addMember(company, { name: text('name'), email: text('email'), role: text('role') || 'Usuário' });
     this.memberError.set(err);
     if (!err) form.reset();
+  }
+
+  protected setCompanyActive(company: Company, el: HTMLInputElement) {
+    const msg = `Desativar ${company}? Ninguém da empresa conseguirá entrar no portal até reativar. Os chamados e o histórico continuam guardados.`;
+    if (!el.checked && !confirm(msg)) return void (el.checked = true);
+    this.store.setCustomerActive(company, el.checked);
   }
 
   protected removeMember(company: Company, email: string, name: string) {

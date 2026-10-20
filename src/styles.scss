@@ -1358,4 +1358,87 @@ dialog::-webkit-scrollbar, dialog *::-webkit-scrollbar { display: none; }
 .login-links button { border: 0; background: none; padding: 0; color: rgb(249 249 249 / 62%); font: inherit; font-size: 13px; cursor: pointer; }
 .login-links button:hover { color: #f04a20; }
 .login-info { margin: 0; font-size: 13px; color: #4ade80; }
-.sidebar .sb-logout { color: #ef4444; } .sidebar .sb-logout:hover { background: rgb(239 68 68 / 14%); color: #ff6b6b; } .collapsed .sb-logout { display: none; }
+/* Logout: red = exit, right above the user card. */
+.sidebar .sb-logout { margin-top: auto; color: #ef4444; }
+.sidebar .sb-logout:hover { background: rgb(239 68 68 / 14%); color: #ff6b6b; }
+.sidebar .sb-logout + .sb-user { margin-top: 8px; }
+.btn-accent:disabled, .btn-accent:disabled:hover { opacity: 0.45; cursor: not-allowed; box-shadow: none; transform: none; background: #f04a20; }
+
+/* activate / deactivate companies and members */
+.co-active { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--d-muted); cursor: pointer; margin-left: auto; }
+.cust-card.inactive { opacity: 0.6; }
+.cust-card.inactive:hover { opacity: 0.85; }
+.inactive-tag { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; background: rgb(239 68 68 / 14%); color: #ff8a8a; }
+.inactive-tag .icon { width: 11px; height: 11px; }
+.member-list li.inactive > :is(.avatar, .grow, .member-count) { opacity: 0.45; }
+.member-list li .switch { flex: none; }
+
+/* ---------- embed widget (/embed, shown in an iframe on other sites) ---------- */
+.em { height: 100vh; display: flex; flex-direction: column; background: #0e0e10; color: #f9f9f9; }
+.em-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid rgb(249 249 249 / 8%); background: #121214; }
+.em-head .grow { flex: 1; display: flex; flex-direction: column; line-height: 1.25; }
+.em-head small { display: inline-flex; align-items: center; gap: 6px; color: rgb(249 249 249 / 58%); font-size: 12px; }
+.em-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; }
+.em-avatar { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: #f04a20; }
+.em-avatar .logo { width: 22px; height: 22px; color: #fff; }
+.em-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; padding: 16px 14px; display: flex; flex-direction: column; gap: 10px; }
+.em-body::-webkit-scrollbar { display: none; }
+.em-bot, .em-me { max-width: 85%; padding: 9px 13px; border-radius: 16px; animation: tc-in 0.25s ease-out; }
+.em-bot { align-self: flex-start; background: #1b1b1f; border: 1px solid rgb(249 249 249 / 8%); border-bottom-left-radius: 4px; }
+.em-me { align-self: flex-end; background: #f04a20; color: #fff; border-bottom-right-radius: 4px; }
+:is(.em-bot, .em-me) p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; font-size: 14px; }
+:is(.em-bot, .em-me) small { display: block; margin-top: 3px; font-size: 10px; opacity: 0.6; text-align: right; }
+.em-author { display: block; font-size: 11px; color: #ff8a66; margin-bottom: 2px; }
+.em-options { display: flex; flex-wrap: wrap; gap: 8px; animation: tc-in 0.3s ease-out; }
+.em-options button { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 8px 14px; border-radius: 14px; border: 1px solid rgb(240 74 32 / 55%);
+  background: rgb(240 74 32 / 8%); color: #f9f9f9; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+.em-options button:hover { background: rgb(240 74 32 / 20%); }
+.em-options button:has(> .icon) { flex-direction: row; align-items: center; gap: 8px; }
+.em-options button .icon { width: 15px; height: 15px; color: #f04a20; }
+.em-options button small { font-size: 11px; color: rgb(249 249 249 / 55%); font-weight: 400; }
+.em-options em { font-style: normal; font-size: 11px; padding: 0 6px; border-radius: 8px; background: #f04a20; color: #fff; }
+.em-composer { display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px; border-top: 1px solid rgb(249 249 249 / 8%); background: #121214; }
+.em-composer .input { flex: 1; min-width: 0; resize: none; max-height: 140px; }
+.em-composer .btn { height: 38px; padding: 0 12px; flex: none; }
+.em-composer .tools { flex: none; display: flex; }
+.em-composer.locked { opacity: 0.6; }
+.em-pending { padding: 8px 12px 0; background: #121214; border-top: 1px solid rgb(249 249 249 / 8%); }
+.em-pending + .em-composer { border-top: 0; }
+.em-wait { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; border: 1px dashed rgb(232 170 50 / 55%); background: rgb(201 138 18 / 10%); font-size: 13px; color: #f5d68a; }
+.em-wait p { margin: 0; line-height: 1.45; }
+.em-wait .icon { width: 18px; height: 18px; flex: none; margin-top: 1px; }
+.em-ticket { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-bottom: 1px solid rgb(249 249 249 / 8%); font-size: 13px; }
+.em-ticket .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.em-ticket .code, .em-list .code { color: #ff8a66; }
+.em-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.em-list button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid rgb(249 249 249 / 8%); background: #141416; color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.em-list button:hover { border-color: rgb(240 74 32 / 45%); }
+.em-list .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.em-list small { color: rgb(249 249 249 / 55%); font-size: 11px; }
+.em-login .input { width: 100%; }
+.em-login .btn { justify-content: center; height: 42px; }
+
+/* Assistant "typing…": three dots for a moment, then the text (CSS only, runs when a bubble is added). */
+.em-bot.typing { position: relative; min-width: 56px; }
+.em-bot.typing > * { animation: em-reveal 0.2s ease-out 0.75s both; }
+.em-bot.typing::after { content: ''; position: absolute; left: 14px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%;
+  background: rgb(249 249 249 / 70%); box-shadow: 10px 0 rgb(249 249 249 / 45%), 20px 0 rgb(249 249 249 / 25%); animation: em-dots 0.75s linear both; }
+@keyframes em-reveal { from { opacity: 0; } }
+@keyframes em-dots {
+  0%, 50% { box-shadow: 10px 0 rgb(249 249 249 / 45%), 20px 0 rgb(249 249 249 / 25%); }
+  25%, 75% { box-shadow: 10px 0 rgb(249 249 249 / 80%), 20px 0 rgb(249 249 249 / 55%); }
+  99% { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+@media (prefers-reduced-motion: reduce) { .em-bot.typing > *, .em-bot.typing::after { animation: none; } .em-bot.typing::after { display: none; } }
+.em-closed { border-color: rgb(239 68 68 / 50%); background: rgb(239 68 68 / 8%); color: #ffb4b4; }
+/* Settings › Widget: generated install code */
+.set-lead { margin: 0; font-size: 14px; line-height: 1.55; }
+.embed-code { display: flex; flex-direction: column; gap: 12px; }
+.embed-code pre { margin: 0; padding: 16px 18px; border-radius: 12px; background: #0a0a0b; border: 1px solid var(--d-line); overflow-x: auto; scrollbar-width: none; font-size: 12.5px; line-height: 1.6; color: #ffb79e; }
+.embed-code pre::-webkit-scrollbar { display: none; }
+
+.em-login .login-or { margin: 2px 0; }
+.em-callback { min-height: 100vh; display: grid; place-content: center; justify-items: center; gap: 14px; background: #0e0e10; color: #f9f9f9; text-align: center; }
+.em-callback .logo { width: 48px; height: 48px; color: #f04a20; }
+.em-callback p { margin: 0; color: rgb(249 249 249 / 70%); }

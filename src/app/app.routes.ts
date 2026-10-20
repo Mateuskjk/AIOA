@@ -16,8 +16,9 @@ import { PortalHome, PortalInbox, PortalLayout, PortalLogin, PortalNew, PortalNo
 /** Team screens: a staff session (Supabase) — open in demo mode. */
 const teamGuard: CanActivateFn = async () => {
   const backend = inject(Backend);
+  const router = inject(Router); // inject before any await: the injection context ends there
   if (!backend.enabled) return true;
-  return (await backend.whenReady()) === 'tech' || inject(Router).parseUrl('/login');
+  return (await backend.whenReady()) === 'tech' || router.parseUrl('/login');
 };
 const team = { canActivate: [teamGuard] };
 
@@ -36,6 +37,8 @@ export const routes: Routes = [
   { path: 'customers', ...team, component: Customers, title: 'Clientes · AIOA' },
   { path: 'settings', ...team, component: Settings, title: 'Configurações · AIOA' },
   { path: 'login', component: PortalLogin, title: 'Entrar · AIOA' },
+  { path: 'embed', loadComponent: () => import('./embed').then((m) => m.Embed), title: 'Suporte AIOA' },
+  { path: 'embed/callback', loadComponent: () => import('./embed-callback').then((m) => m.EmbedCallback), title: 'Entrando · AIOA' },
   { path: 'portal/login', redirectTo: 'login' },
   {
     path: 'portal',
