@@ -1,4 +1,6 @@
-import { Routes } from '@angular/router';
+import { inject } from '@angular/core';
+import { CanActivateFn, Router, Routes } from '@angular/router';
+import { Backend } from './backend';
 import { Dashboard } from './pages/dashboard';
 import { Inbox } from './pages/inbox';
 import { Notifications } from './pages/notifications';
@@ -6,27 +8,35 @@ import { Tickets } from './pages/tickets';
 import { TicketDetail } from './pages/ticket-detail';
 import { TicketHistory } from './pages/ticket-history';
 import { Forum } from './pages/forum';
-import { Report } from './pages/report';
 import { Settings } from './pages/settings';
 import { Kb } from './pages/kb';
 import { Customers } from './pages/customers';
-import { PortalHome, PortalLayout, PortalLogin, PortalNew, PortalTicket, portalGuard } from './portal';
+import { PortalHome, PortalInbox, PortalLayout, PortalLogin, PortalNew, PortalNotifications, PortalTicket, portalGuard } from './portal';
+
+/** Team screens: a staff session (Supabase) — open in demo mode. */
+const teamGuard: CanActivateFn = async () => {
+  const backend = inject(Backend);
+  if (!backend.enabled) return true;
+  return (await backend.whenReady()) === 'tech' || inject(Router).parseUrl('/login');
+};
+const team = { canActivate: [teamGuard] };
 
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
-  { path: 'dashboard', component: Dashboard, title: 'Dashboard · AIOA' },
-  { path: 'inbox', component: Inbox, title: 'Inbox · AIOA' },
-  { path: 'notifications', component: Notifications, title: 'Notificações · AIOA' },
-  { path: 'tickets', component: Tickets, title: 'Tickets · AIOA' },
-  { path: 'tickets/:id', component: TicketDetail, title: 'Ticket · AIOA' },
-  { path: 'ticket-history', component: TicketHistory, title: 'Histórico de tickets · AIOA' },
-  { path: 'forum', component: Forum, title: 'Fórum · AIOA' },
-  { path: 'report', component: Report, title: 'Report · AIOA' },
-  { path: 'kb', component: Kb, title: 'Base de conhecimento · AIOA' },
-  { path: 'kb/:id', component: Kb, title: 'Artigo · AIOA' },
-  { path: 'customers', component: Customers, title: 'Clientes · AIOA' },
-  { path: 'settings', component: Settings, title: 'Configurações · AIOA' },
-  { path: 'portal/login', component: PortalLogin, title: 'Portal do cliente · AIOA' },
+  { path: '', pathMatch: 'full', loadComponent: () => import('./pages/landing').then((m) => m.Landing), title: 'AIOA · Suporte do ecossistema Lex' },
+  { path: 'dashboard', ...team, component: Dashboard, title: 'Dashboard · AIOA' },
+  { path: 'inbox', ...team, component: Inbox, title: 'Inbox · AIOA' },
+  { path: 'notifications', ...team, component: Notifications, title: 'Notificações · AIOA' },
+  { path: 'tickets', ...team, component: Tickets, title: 'Tickets · AIOA' },
+  { path: 'tickets/:id', ...team, component: TicketDetail, title: 'Ticket · AIOA' },
+  { path: 'ticket-history', ...team, component: TicketHistory, title: 'Histórico de tickets · AIOA' },
+  { path: 'forum/:id', ...team, component: Forum, title: 'Post · AIOA' },
+  { path: 'forum', ...team, component: Forum, title: 'Fórum · AIOA' },
+  { path: 'kb', ...team, component: Kb, title: 'Base de conhecimento · AIOA' },
+  { path: 'kb/:id', ...team, component: Kb, title: 'Artigo · AIOA' },
+  { path: 'customers', ...team, component: Customers, title: 'Clientes · AIOA' },
+  { path: 'settings', ...team, component: Settings, title: 'Configurações · AIOA' },
+  { path: 'login', component: PortalLogin, title: 'Entrar · AIOA' },
+  { path: 'portal/login', redirectTo: 'login' },
   {
     path: 'portal',
     component: PortalLayout,
@@ -35,6 +45,11 @@ export const routes: Routes = [
       { path: '', component: PortalHome, title: 'Meus chamados · AIOA' },
       { path: 'novo', component: PortalNew, title: 'Abrir chamado · AIOA' },
       { path: 'chamados/:id', component: PortalTicket, title: 'Chamado · AIOA' },
+      { path: 'inbox', component: PortalInbox, title: 'Inbox · AIOA' },
+      { path: 'notificacoes', component: PortalNotifications, title: 'Notificações · AIOA' },
+      { path: 'forum', component: Forum, data: { portal: true }, title: 'Fórum · AIOA' },
+      { path: 'forum/:id', component: Forum, data: { portal: true }, title: 'Post · AIOA' },
+      { path: 'historico', component: TicketHistory, data: { portal: true }, title: 'Histórico de tickets · AIOA' },
       { path: 'kb', component: Kb, data: { portal: true }, title: 'Base de conhecimento · AIOA' },
       { path: 'kb/:id', component: Kb, data: { portal: true }, title: 'Artigo · AIOA' },
     ],

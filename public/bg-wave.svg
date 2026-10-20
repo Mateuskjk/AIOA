@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <filter id="soft" filterUnits="userSpaceOnUse" x="-400" y="-400" width="2400" height="1800"><feGaussianBlur stdDeviation="70" /></filter>
+    <filter id="core" filterUnits="userSpaceOnUse" x="-400" y="-400" width="2400" height="1800"><feGaussianBlur stdDeviation="28" /></filter>
+  </defs>
+  <rect width="1600" height="1000" fill="#121612" />
+  <!-- glow -->
+  <path d="M-200 650 C 250 560, 520 820, 780 560 S 1250 330, 1800 440" fill="none" stroke="#e8401c" stroke-width="260" stroke-linecap="round" opacity="0.75" filter="url(#soft)" />
+  <!-- bright core of the wave -->
+  <path d="M-200 650 C 250 560, 520 820, 780 560 S 1250 330, 1800 440" fill="none" stroke="#f04a20" stroke-width="110" stroke-linecap="round" filter="url(#core)" />
+</svg>

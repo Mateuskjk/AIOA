@@ -8,10 +8,11 @@ import { Call, CallKind } from '../call';
 
 @Component({
   selector: 'app-ticket-detail',
+  host: { '(document:click)': 'closeVia($event)' },
   imports: [Icon, RouterLink, ComposerTools, Attachments, TicketSide, Call],
   template: `
     @if (ticket(); as t) {
-      <div class="td">
+      <div class="td dark-ui">
         <header class="td-top">
           <a routerLink="/tickets" class="back"><app-icon name="back" /> Lista de tickets</a>
           <div class="td-title">
@@ -19,10 +20,7 @@ import { Call, CallKind } from '../call';
             <button class="icon-btn" aria-label="Próximo chamado" [disabled]="!sibling(1)" (click)="go(sibling(1))"><app-icon name="chevron-right" /></button>
             <b class="code">{{ code(t) }}</b>
             <span class="title-chip" [title]="t.title">{{ t.title }}</span>
-            <button class="icon-btn" [class.pinned]="t.pinned" [attr.aria-pressed]="t.pinned"
-              [attr.aria-label]="t.pinned ? 'Desafixar' : 'Fixar'" (click)="store.updateTicket(t.id, { pinned: !t.pinned })">
-              <app-icon name="pin" />
-            </button>
+            <span [class]="badge(t.status)">{{ t.status }}</span>
             <button class="icon-btn" aria-label="Ligar para o cliente" title="Ligação" (click)="call.set('audio')"><app-icon name="phone" /></button>
             <button class="icon-btn" aria-label="Chamada de vídeo com o cliente" title="Chamada de vídeo" (click)="call.set('video')"><app-icon name="video" /></button>
           </div>
@@ -42,24 +40,22 @@ import { Call, CallKind } from '../call';
         <div class="td-body">
           <section class="td-main">
             <div #scroller class="td-scroll">
-              <ol class="timeline">
+              <!-- Chat: customer on the left, the team on the right, internal notes in amber, events as centered pills. -->
+              <ol class="td-chat">
                 @for (item of timeline(); track $index) {
                   @if (item.kind === 'event') {
-                    <li class="event"><span class="ev-icon"><app-icon name="ticket" /></span>
-                      <span class="muted">{{ item.text }}</span><small class="muted">· {{ fmt(item.at) }}</small></li>
+                    <li class="tc-event"><span><app-icon name="ticket" /> {{ item.text }} <small>· {{ fmt(item.at) }}</small></span></li>
                   } @else {
-                    <li class="msg" [class.note]="item.internal">
+                    <li class="tc-msg" [class.mine]="isAgent(item.author)" [class.note]="item.internal">
                       <span class="avatar sm" [class.agent]="isAgent(item.author)">{{ initials(item.author) }}</span>
-                      <div>
+                      <div class="tc-bubble">
                         <header><strong>{{ item.author }}</strong>
-                          @if (item.internal) {
-                            <span class="note-tag"><app-icon name="lock" /> Nota interna</span><small class="muted">· {{ fmt(item.at) }}</small>
-                          } @else {
-                            <small class="muted">· {{ fmt(item.at) }} @if (item.via) { · via <span class="via">{{ item.via }}</span> }</small>
-                          }
+                          @if (item.internal) { <span class="note-tag"><app-icon name="lock" /> Nota interna</span> }
+                          @else if (item.via) { <span class="via">{{ item.via }}</span> }
                         </header>
                         @if (item.body) { <p>{{ item.body }}</p> }
                         @if (item.files?.length) { <app-attachments [files]="item.files!" /> }
+                        <small class="tc-time">{{ fmt(item.at) }}</small>
                       </div>
                     </li>
                   }
@@ -71,14 +67,30 @@ import { Call, CallKind } from '../call';
                 <span class="avatar sm agent">{{ initials(store.user().name) }}</span>
                 <div class="box" [class.internal]="note()">
                   <div class="cmp-top">
-                    <div class="seg" role="radiogroup" aria-label="Tipo de mensagem">
+                    <div class="seg view-toggle" role="radiogroup" aria-label="Tipo de mensagem">
                       <button type="button" role="radio" [attr.aria-checked]="!note()" [class.on]="!note()" (click)="note.set(false)">Resposta</button>
                       <button type="button" role="radio" [attr.aria-checked]="note()" [class.on]="note()" (click)="note.set(true)"><app-icon name="lock" /> Nota interna</button>
                     </div>
                     @if (note()) {
                       <span class="muted">Visível só para a equipe AIOA</span>
                     } @else {
-                      <label>Via <select #ch (change)="via.set($any(ch.value))">@for (c of channels; track c) { <option [selected]="c === via()">{{ c }}</option> }</select></label>
+                      <span class="via-label">Via</span>
+                      <div class="via-wrap">
+                        <button type="button" class="via-pick" [attr.aria-expanded]="viaOpen()" aria-haspopup="listbox" (click)="viaOpen.set(!viaOpen())">
+                          <app-icon [name]="channelInfo[via()].icon" /> {{ via() }} <app-icon name="chevron-down" />
+                        </button>
+                        @if (viaOpen()) {
+                          <ul class="via-menu" role="listbox" aria-label="Canal da resposta">
+                            @for (c of channels; track c) {
+                              <li><button type="button" role="option" [attr.aria-selected]="c === via()" [class.on]="c === via()" (click)="via.set(c); viaOpen.set(false)">
+                                <app-icon [name]="channelInfo[c].icon" />
+                                <span><strong>{{ c }}</strong><small>{{ channelInfo[c].hint }}</small></span>
+                                @if (c === via()) { <app-icon name="check" /> }
+                              </button></li>
+                            }
+                          </ul>
+                        }
+                      </div>
                       <label>De <span class="chip">Suporte AIOA</span></label>
                     }
                   </div>
@@ -86,10 +98,10 @@ import { Call, CallKind } from '../call';
                     <app-attachments [(files)]="files" removable />
                   }
                   <textarea #ta name="body" rows="2" (keydown.control.enter)="submit($event)"
-                    [placeholder]="note() ? 'Escreva uma nota interna para a equipe…' : 'Escreva uma resposta para ' + t.requester + '…'"></textarea>
+                    [placeholder]="(note() ? 'Escreva uma nota interna para a equipe…' : 'Escreva uma resposta para ' + t.requester + '…') + ' Cole prints com Ctrl+V.'"></textarea>
                   <div class="cmp-foot">
                     <app-composer-tools [target]="ta" [(files)]="files" />
-                    <button class="btn btn-primary" title="Ctrl + Enter">{{ note() ? 'Salvar nota' : 'Enviar' }}</button>
+                    <button class="btn btn-accent" title="Ctrl + Enter"><app-icon name="send" /> {{ note() ? 'Salvar nota' : 'Enviar' }}</button>
                   </div>
                 </div>
               </form>
@@ -111,7 +123,17 @@ export class TicketDetail {
   protected readonly store = inject(Store);
   private readonly router = inject(Router);
   protected readonly statuses = STATUSES;
-  protected readonly channels = CHANNELS;
+  /** Channels the team can reply through (WhatsApp replies aren't sent from here). */
+  protected readonly channels = CHANNELS.filter((c) => c !== 'WhatsApp');
+  protected readonly channelInfo: Record<string, { icon: string; hint: string }> = {
+    'E-mail': { icon: 'mail', hint: 'Envia por e-mail ao solicitante' },
+    Portal: { icon: 'globe', hint: 'Aparece no portal do cliente' },
+  };
+  protected readonly viaOpen = signal(false);
+
+  protected closeVia(e: Event) {
+    if (this.viaOpen() && !(e.target as Element).closest('.via-wrap')) this.viaOpen.set(false);
+  }
   protected readonly badge = badge;
   protected readonly code = code;
   protected readonly fmt = fmt;
@@ -131,7 +153,10 @@ export class TicketDetail {
       if (el) el.scrollTop = el.scrollHeight;
     });
   }
-  protected readonly via = linkedSignal<Channel>(() => this.ticket()?.messages[0]?.via ?? 'WhatsApp');
+  protected readonly via = linkedSignal<Channel>(() => {
+    const first = this.ticket()?.messages[0]?.via;
+    return first && first !== 'WhatsApp' ? first : 'E-mail';
+  });
 
   protected readonly ticket = computed(() => this.store.ticket(Number(this.id())));
   /** Composer mode: internal note (team only) instead of a reply to the customer. */
@@ -194,22 +219,10 @@ export class TicketDetail {
     (form.elements.namedItem('body') as HTMLTextAreaElement).value = '';
   }
 
-  /**
-   * Resolving sends the customer a closing message, archives a full transcript in Histórico de tickets
-   * and as an internal note with a .txt attachment, then closes out the ticket and returns to the list.
-   */
+  /** Resolves through the shared Store flow (closing message + transcript), then returns to the list. */
   protected resolve(t: Ticket) {
     this.menu.set(false);
-    this.store.reply(t.id, `Olá, ${t.requester}! Seu chamado ${code(t)} foi resolvido e o atendimento está encerrado. Se precisar, é só abrir um novo chamado. 😊`, this.via());
-    const text = this.store.saveTranscript(t.id).text;
-    const file = {
-      name: `transcricao-${code(t)}.txt`,
-      type: 'text/plain',
-      size: new Blob([text]).size,
-      url: 'data:text/plain;charset=utf-8,' + encodeURIComponent('﻿' + text),
-    };
-    this.store.reply(t.id, '📄 Transcrição completa do atendimento gerada antes do encerramento.', this.via(), true, [file]);
-    this.store.updateTicket(t.id, { status: 'Resolvido' });
+    this.store.resolve(t.id, this.via());
     this.router.navigate(['/tickets']);
   }
 }

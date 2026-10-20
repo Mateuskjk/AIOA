@@ -1,4 +1,4 @@
-import { Component, DestroyRef, ElementRef, booleanAttribute, inject, input, model, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, booleanAttribute, effect, inject, input, model, signal, viewChild } from '@angular/core';
 import { Attachment } from './data';
 import { Icon } from './ui';
 
@@ -63,6 +63,31 @@ export class ComposerTools {
 
   constructor() {
     inject(DestroyRef).onDestroy(() => this.stop(false));
+    // Prints pasted (Ctrl+V) or files dropped on the text field become attachments.
+    effect((onCleanup) => {
+      const el: HTMLElement = this.target();
+      const paste = (e: ClipboardEvent) => {
+        const files = Array.from(e.clipboardData?.files ?? []);
+        if (!files.length) return;
+        e.preventDefault();
+        void this.addFiles(files);
+      };
+      const over = (e: DragEvent) => e.dataTransfer?.types.includes('Files') && e.preventDefault();
+      const drop = (e: DragEvent) => {
+        const files = Array.from(e.dataTransfer?.files ?? []);
+        if (!files.length) return;
+        e.preventDefault();
+        void this.addFiles(files);
+      };
+      el.addEventListener('paste', paste);
+      el.addEventListener('dragover', over);
+      el.addEventListener('drop', drop);
+      onCleanup(() => {
+        el.removeEventListener('paste', paste);
+        el.removeEventListener('dragover', over);
+        el.removeEventListener('drop', drop);
+      });
+    });
   }
 
   protected outside(e: Event) {
@@ -79,14 +104,20 @@ export class ComposerTools {
   }
 
   protected async pick(input: HTMLInputElement) {
-    for (const f of Array.from(input.files ?? [])) {
+    await this.addFiles(Array.from(input.files ?? []));
+    input.value = '';
+  }
+
+  private async addFiles(files: File[]) {
+    for (const f of files) {
       if (f.size > MAX_BYTES) {
         alert(`"${f.name}" tem ${size(f.size)}. O limite no protótipo é ${size(MAX_BYTES)} por arquivo.`);
         continue;
       }
-      this.add({ name: f.name, type: f.type || 'application/octet-stream', size: f.size, url: await toDataUrl(f) });
+      // Clipboard screenshots all arrive as "image.png": give each a readable name.
+      const name = f.name === 'image.png' ? `print-${new Date().toLocaleTimeString('pt-BR').replaceAll(':', '-')}.png` : f.name;
+      this.add({ name, type: f.type || 'application/octet-stream', size: f.size, url: await toDataUrl(f) });
     }
-    input.value = '';
   }
 
   protected async record() {
